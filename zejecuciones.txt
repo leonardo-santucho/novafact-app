@@ -1,9 +1,11 @@
 🧪 Ejemplo de uso
+
 1. Solo mostrar qué haría (sin renombrar):
 python rename_invoice_by_client.py
 
-2. Aplicar renombrado real:
+2. Solo mostrar y debug
+python rename_invoice_by_client.py --debug
+
+3. Aplicar renombrado real:
 python rename_invoice_by_client.py --apply
 
-3. Usar otra carpeta puntual (ignora el .env):
-python rename_invoice_by_client.py --path ./pendientes --apply

@@ -5,11 +5,22 @@ import os, re, sys, glob, shutil
 from typing import Optional, List
 from unidecode import unidecode
 from dotenv import load_dotenv
+from pathlib import Path
 
 # ---------------------- Config ----------------------
-load_dotenv()
-DEFAULT_PATH = os.getenv("PDF_INPUT_PATH", "./")
+
 SEARCH_WINDOW_NEXT = 12  # ahora miramos hasta 12 líneas debajo del label
+
+
+# --- Carga robusta del .env ---
+ROOT = Path(__file__).resolve().parent
+dotenv_file = ROOT / ".env"
+# Fuerzo ruta + codificación UTF-8 y permito override
+load_dotenv(dotenv_path=dotenv_file, encoding="utf-8", override=True)
+
+# Si no hay variable, default a ./facturas_pdf dentro del proyecto
+DEFAULT_PATH = os.getenv("PDF_INPUT_PATH") or str(ROOT / "facturas_pdf")
+
 
 # ---------------------- Extracción de texto ----------------------
 def extract_text_pypdf(pdf_path: str) -> Optional[str]:
@@ -65,55 +76,95 @@ def strip_trailing_labels(s: str) -> str:
 
 def find_after_label_flexible(lines: List[str], start_idx: int) -> Optional[str]:
     """
-    Busca la primera línea viable en las próximas N líneas,
-    se detiene si encuentra otra etiqueta importante.
+    Desde el label, escanea hasta SEARCH_WINDOW_NEXT líneas.
+    Ignora otros labels intermedios y, cuando encuentra una línea viable,
+    concatena hasta 2 líneas siguientes si parecen continuar el nombre.
     """
     for j in range(start_idx + 1, min(start_idx + 1 + SEARCH_WINDOW_NEXT, len(lines))):
         cand = lines[j].strip()
         if not cand:
             continue
         if STOP_LABELS.search(cand):
-            # si justo es la etiqueta, no tomarla como nombre y cortar
-            return None
-        cand = strip_trailing_labels(cand)
-        if is_viable_name(cand):
-            return cand
+            # no cortar: saltar y seguir buscando dentro de la ventana
+            continue
+
+        # primera línea candidata
+        chunk = strip_trailing_labels(cand)
+        if not is_viable_name(chunk):
+            continue
+
+        # concatenar hasta 2 líneas más si continúan el nombre
+        k = 0
+        t = j + 1
+        while k < 2 and t < len(lines):
+            nxt = lines[t].strip()
+            if not nxt:
+                t += 1
+                continue
+            if STOP_LABELS.search(nxt):
+                break
+            nxt2 = strip_trailing_labels(nxt)
+            if not nxt2:
+                break
+            chunk = (chunk + " " + nxt2).strip()
+            k += 1
+            t += 1
+
+        if is_viable_name(chunk):
+            return chunk
+
     return None
+
 
 def detect_client_name(text: str, debug: bool = False) -> Optional[str]:
     lines = [ln.strip() for ln in text.split("\n") if ln is not None]
     if debug:
-        print("---- DEBUG: primeras 60 líneas ----")
-        for i, ln in enumerate(lines[:60]):
+        print("---- DEBUG: primeras 80 líneas ----")
+        for i, ln in enumerate(lines[:80]):
             print(f"{i:02d}: {ln}")
 
-    # 1) Mismo renglón que el label
-    for ln in lines:
+    # 1) Label y valor en la misma línea (con posible continuación)
+    for idx, ln in enumerate(lines):
         m = LABEL_PATTERN.search(ln)
         if m:
-            cand = strip_trailing_labels(m.group(1).strip())
-            if is_viable_name(cand):
-                return cand
+            tail = m.group(1).strip()
+            chunk = strip_trailing_labels(tail)
 
-    # 2) Label solo y nombre en líneas siguientes (ventana ampliada)
+            # concatenar hasta 2 líneas si sigue el nombre
+            k = 0
+            j = idx + 1
+            while k < 2 and j < len(lines):
+                nxt = lines[j].strip()
+                if not nxt:
+                    j += 1
+                    continue
+                if STOP_LABELS.search(nxt):
+                    break
+                chunk = (chunk + " " + strip_trailing_labels(nxt)).strip()
+                k += 1
+                j += 1
+
+            if is_viable_name(chunk):
+                return chunk
+
+    # 2) Label solo, nombre en líneas siguientes (usa la versión flexible)
     for i, ln in enumerate(lines):
         if LABEL_ONLY_PATTERN.search(ln):
             cand = find_after_label_flexible(lines, i)
             if cand:
                 return cand
 
-    # 3) Escaneo en bloque del cliente: buscar label cerca de CUIT
+    # 3) Cerca del CUIT (escaneo de respaldo)
     cuit_positions = [i for i, ln in enumerate(lines) if CUIT_LABEL.search(ln)]
     for pos in cuit_positions:
         for j in range(pos, min(pos + 1 + SEARCH_WINDOW_NEXT, len(lines))):
             m = LABEL_PATTERN.search(lines[j])
             if m:
-                cand = strip_trailing_labels(m.group(1).strip())
-                if is_viable_name(cand):
-                    return cand
+                tail = strip_trailing_labels(m.group(1).strip())
+                if is_viable_name(tail):
+                    return tail
 
-    # 4) Respaldo “empresa”: buscar líneas con sufijo societario (S.A., SRL, etc.)
-    #    Tomamos la más larga que no sea otra etiqueta.
+    # 4) Último intento: líneas con sufijo societario
     candidates = []
     for ln in lines:
         if COMPANY_SUFFIX.search(ln):
