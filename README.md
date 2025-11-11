@@ -144,10 +144,4 @@ Salida esperada:
 
 ---
 
-## 👨‍💻 Autor
 
-**Leonardo Santucho**  
-Líder de Proyectos Tecnológicos | Ingeniero en Sistemas  
-📧 [leonardo.santucho@novagames.com.ar](mailto:leonardo.santucho@novagames.com.ar)
-
----
