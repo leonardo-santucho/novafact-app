@@ -3,3 +3,4 @@ venv/
 .DS_Store
 __pycache__/
 facturas_pdf/*.pdf
+facturas_renombradas/*.pdf
