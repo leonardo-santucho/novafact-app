@@ -9,3 +9,10 @@ python rename_invoice_by_client.py --debug
 3. Aplicar renombrado real:
 python rename_invoice_by_client.py --apply
 
+
+PDF_INPUT_PATH=./facturas_pdf
+PDF_OUTPUT_PATH=./facturas_renombradas
+PDF_CLIENT_NAME_MAXLEN=20
+# PDF_FILENAME_FORMAT=YYYYMMDD_NOMBRE_CLIENTE 
+PDF_FILENAME_FORMAT=NOMBRE_CLIENTE_YYYYMMDD
+
