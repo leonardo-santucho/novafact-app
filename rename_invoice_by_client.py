@@ -267,15 +267,11 @@ def main():
 
     parser = argparse.ArgumentParser(description="Renombra facturas PDF agregando el nombre del cliente (AFIP/Proveedor).")
 
-    parser.add_argument("--apply", "--aplicar", dest="apply", action="store_true",
-                        help="Apply changes (default is dry-run). / Aplica cambios (por defecto solo muestra).")
-    parser.add_argument("--path", "--ruta", dest="path", type=str, default=RUTA_POR_DEFECTO,
-                        help="Path to invoices folder (default from PDF_INPUT_PATH in .env). / Ruta de facturas.")
-    parser.add_argument("--debug", "--depurar", dest="debug", action="store_true",
-                        help="Show extracted text lines for diagnostics.")
+    parser.add_argument("--apply", "--aplicar", dest="apply", action="store_true")
+    parser.add_argument("--path", "--ruta", dest="path", type=str, default=RUTA_POR_DEFECTO)
+    parser.add_argument("--debug", "--depurar", dest="debug", action="store_true")
     parser.add_argument("--layout", "--formato", dest="layout",
-                        choices=["AUTO", "AFIP_MONO", "PROV_B"], default=FORZAR_LAYOUT,
-                        help="Force layout detection. / Forzar layout (AUTO | AFIP_MONO | PROV_B).")
+                        choices=["AUTO", "AFIP_MONO", "PROV_B"], default=FORZAR_LAYOUT)
 
     args = parser.parse_args()
     ruta = os.path.abspath(args.path)
@@ -284,9 +280,13 @@ def main():
         print(f"❌ Ruta inválida o inexistente: {ruta}")
         sys.exit(2)
 
+    # ⬇️ REEMPLAZÁ ESTA PARTE POR ESTE BLOQUE ⬇️
     archivos: List[str] = []
-    for patron in ("*.pdf", "*.PDF"):
-        archivos.extend(glob.glob(os.path.join(ruta, patron)))
+    with os.scandir(ruta) as it:
+        for entry in it:
+            if entry.is_file() and entry.name.lower().endswith(".pdf"):
+                archivos.append(entry.path)
+    # ⬆️ ACÁ ESTÁ LA SOLUCIÓN AL PROBLEMA DE DUPLICADOS ⬆️
 
     if not archivos:
         print(f"No se encontraron archivos PDF en {ruta}")
@@ -301,6 +301,7 @@ def main():
             print(mensaje)
         except Exception as e:
             print(f"❌ {os.path.basename(ruta_pdf)}: {e}")
+
 
 if __name__ == "__main__":
     main()
